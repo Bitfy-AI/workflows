@@ -1,9 +1,9 @@
 {
-  "createdAt": "2025-02-04T11:26:57.867Z",
-  "updatedAt": "2025-02-04T11:26:57.867Z",
-  "id": "CgP0NmwS91vKBgKv",
+  "createdAt": "2025-01-30T18:15:19.416Z",
+  "updatedAt": "2025-02-05T10:43:51.119Z",
+  "id": "vvfHJHxmt2hCJJE5",
   "name": "[Anna-Tools] v2",
-  "active": false,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -829,7 +829,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const axios = require('axios');\n\n// Obtém as credenciais do Portainer a partir do nó \"Get Global Vars\"\nconst portainerUsername = $('Get Global Vars').first().json.portainer_username;\nconst portainerPassword = $('Get Global Vars').first().json.portainer_password;\n\n// URL base do Portainer\nconst portainerUrl = \"http://portainer:9000\";\n\n/**\n * Função para logar no Portainer e obter um token JWT.\n */\nasync function loginPortainer() {\n  const url = `${portainerUrl}/api/auth`;\n  console.log(`Realizando login no Portainer em: ${url}`);\n  try {\n    const response = await axios.post(url, {\n      Username: portainerUsername,\n      Password: portainerPassword\n    });\n    console.log(\"Login realizado com sucesso. Token JWT obtido.\");\n    return response.data.jwt;\n  } catch (error) {\n    console.error(\"Erro ao realizar login no Portainer:\", error.response ? error.response.data : error.message);\n    throw error;\n  }\n}\n\n/**\n * Função para obter todas as stacks do Portainer.\n * @param {string} jwt - Token JWT obtido no login.\n */\nasync function getStacks(jwt) {\n  const url = `${portainerUrl}/api/stacks`;\n  console.log(`Obtendo stacks do Portainer em: ${url}`);\n  try {\n    const response = await axios.get(url, {\n      headers: {\n        Authorization: `Bearer ${jwt}`\n      }\n    });\n    console.log(`Total de stacks obtidas: ${response.data.length}`);\n    return response.data;\n  } catch (error) {\n    console.error(\"Erro ao obter stacks:\", error.response ? error.response.data : error.message);\n    throw error;\n  }\n}\n\n/**\n * Função para obter o arquivo (file) de uma stack específica.\n * @param {string} jwt - Token JWT.\n * @param {number|string} stackId - ID da stack.\n */\nasync function getStackFile(jwt, stackId) {\n  const url = `${portainerUrl}/api/stacks/${stackId}/file`;\n  console.log(`Obtendo arquivo da stack ${stackId} em: ${url}`);\n  try {\n    const response = await axios.get(url, {\n      headers: {\n        Authorization: `Bearer ${jwt}`\n      }\n    });\n    return response.data;\n  } catch (error) {\n    console.error(`Erro ao obter arquivo da stack ${stackId}:`, error.response ? error.response.data : error.message);\n    throw error;\n  }\n}\n\n/**\n * Função principal que executa a lógica:\n * 1. Login no Portainer.\n * 2. Obtenção das stacks.\n * 3. Para cada stack, obtém o arquivo associado.\n * 4. Retorna os dados no formato esperado pelo n8n.\n */\nasync function main() {\n  // Realiza o login e obtém o token JWT\n  const jwt = await loginPortainer();\n\n  // Obtém todas as stacks\n  const stacks = await getStacks(jwt);\n  const results = [];\n\n  // Para cada stack, tenta obter o conteúdo do arquivo (file)\n  for (const stack of stacks) {\n    console.log(`Processando stack - ID: ${stack.Id}, Nome: ${stack.Name}`);\n    try {\n      const file = await getStackFile(jwt, stack.Id);\n      results.push({\n        stackId: stack.Id,\n        stackName: stack.Name,\n        file: file\n      });\n    } catch (error) {\n      results.push({\n        stackId: stack.Id,\n        stackName: stack.Name,\n        error: error.response ? error.response.data : error.message\n      });\n    }\n  }\n\n  // Retorna os resultados no formato esperado pelo n8n\n  return results.map(item => ({ json: item }));\n}\n\n// Executa a função principal e retorna a promise\nreturn main();\n"
+        "jsCode": "/**\n * Código para recuperar todas as stacks do Portainer e os respectivos arquivos (file) de cada stack.\n * \n * Lógica:\n * 1. Obtém as credenciais do Portainer a partir do nó \"Get Global Vars\" e valida que não sejam nulas.\n * 2. Realiza login no Portainer para obter o token JWT.\n * 3. Obtém todas as stacks do Portainer.\n * 4. Para cada stack, obtém o arquivo associado (file).\n * 5. Se ocorrer algum erro, os logs detalhados serão retornados.\n * 6. Se tudo ocorrer normalmente, retorna apenas os resultados dos arquivos.\n * \n * Os resultados são retornados no formato esperado pelo n8n: cada item encapsulado em { json: { ... } }.\n */\n\nconst axios = require('axios');\n\n// Função de delay (aguarda ms milissegundos)\nconst delay = ms => new Promise(resolve => setTimeout(resolve, ms));\n\n// ----------------------------------------------------------------------\n// 1. Obter parâmetros do Portainer\n// ----------------------------------------------------------------------\nconst globalVars = $('Get Global Vars').first().json;\nconst portainerUsername = globalVars.portainer_username;\nconst portainerPassword = globalVars.portainer_password;\n\nif (!portainerUsername || !portainerPassword) {\n  const errorMsg = `Parâmetros inválidos: portainer_username='${portainerUsername}', portainer_password='${portainerPassword}'`;\n  console.error(errorMsg);\n  throw new Error(errorMsg);\n}\n\nconsole.log(`Parâmetros do Portainer: username='${portainerUsername}', password='${portainerPassword ? '***' : 'null'}`);\n\n// URL base do Portainer\nconst portainerUrl = \"http://portainer:9000\";\n\n// ----------------------------------------------------------------------\n// 2. Função para logar no Portainer e obter um token JWT\n// ----------------------------------------------------------------------\nasync function loginPortainer() {\n  const url = `${portainerUrl}/api/auth`;\n  console.log(`Realizando login no Portainer em: ${url}`);\n  try {\n    const response = await axios.post(url, {\n      Username: portainerUsername,\n      Password: portainerPassword\n    });\n    console.log(\"Login realizado com sucesso. Token JWT obtido.\");\n    return response.data.jwt;\n  } catch (error) {\n    const errDetails = error.response ? error.response.data : error.message;\n    console.error(\"Erro ao realizar login no Portainer:\", errDetails);\n    throw new Error(`Erro no login no Portainer: ${JSON.stringify(errDetails)}`);\n  }\n}\n\n// ----------------------------------------------------------------------\n// 3. Função para obter todas as stacks do Portainer\n// ----------------------------------------------------------------------\nasync function getStacks(jwt) {\n  const url = `${portainerUrl}/api/stacks`;\n  console.log(`Obtendo stacks do Portainer em: ${url}`);\n  try {\n    const response = await axios.get(url, {\n      headers: {\n        Authorization: `Bearer ${jwt}`\n      }\n    });\n    console.log(`Total de stacks obtidas: ${response.data.length}`);\n    return response.data;\n  } catch (error) {\n    const errDetails = error.response ? error.response.data : error.message;\n    console.error(\"Erro ao obter stacks:\", errDetails);\n    throw new Error(`Erro ao obter stacks: ${JSON.stringify(errDetails)}`);\n  }\n}\n\n// ----------------------------------------------------------------------\n// 4. Função para obter o arquivo (file) de uma stack específica\n// ----------------------------------------------------------------------\nasync function getStackFile(jwt, stackId) {\n  const url = `${portainerUrl}/api/stacks/${stackId}/file`;\n  console.log(`Obtendo arquivo da stack ${stackId} em: ${url}`);\n  try {\n    const response = await axios.get(url, {\n      headers: {\n        Authorization: `Bearer ${jwt}`\n      }\n    });\n    console.log(`Arquivo da stack ${stackId} obtido com sucesso.`);\n    return response.data;\n  } catch (error) {\n    const errDetails = error.response ? error.response.data : error.message;\n    console.error(`Erro ao obter arquivo da stack ${stackId}:`, errDetails);\n    throw new Error(`Erro ao obter arquivo da stack ${stackId}: ${JSON.stringify(errDetails)}`);\n  }\n}\n\n// ----------------------------------------------------------------------\n// 5. Função principal\n// ----------------------------------------------------------------------\nasync function main() {\n  const results = [];\n  const logs = [];\n  \n  try {\n    // Realiza login e obtém o token JWT\n    const jwt = await loginPortainer();\n    logs.push({ step: \"login\", message: \"Login realizado com sucesso.\", jwt });\n    \n    // Obtém todas as stacks\n    const stacks = await getStacks(jwt);\n    logs.push({ step: \"getStacks\", message: \"Stacks obtidas com sucesso.\", total: stacks.length });\n    \n    // Para cada stack, obtém o arquivo associado\n    for (const stack of stacks) {\n      console.log(`Processando stack - ID: ${stack.Id}, Nome: ${stack.Name}`);\n      try {\n        const file = await getStackFile(jwt, stack.Id);\n        logs.push({ step: \"getStackFile\", stackId: stack.Id, message: \"Arquivo obtido com sucesso.\" });\n        results.push({\n          stackId: stack.Id,\n          stackName: stack.Name,\n          file: file\n        });\n      } catch (error) {\n        logs.push({ step: \"getStackFile\", stackId: stack.Id, message: \"Erro ao obter arquivo.\", error: error.toString() });\n        results.push({\n          stackId: stack.Id,\n          stackName: stack.Name,\n          error: error.toString()\n        });\n      }\n      await delay(1000);\n    }\n    \n    // Se tudo ocorrer normalmente, retorna apenas os resultados\n    return results.map(item => ({ json: item }));\n    \n  } catch (error) {\n    console.error(\"Erro no processamento principal:\", error.toString());\n    // Em caso de erro, retorna os logs detalhados junto com a mensagem de erro\n    return [{ json: { error: error.toString(), logs } }];\n  }\n}\n\nreturn main();\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1270,11 +1270,357 @@
       ]
     }
   },
-  "settings": {},
-  "staticData": null,
-  "meta": null,
-  "pinData": null,
-  "versionId": "8db957be-51c3-423e-84c9-9587610a5a45",
-  "triggerCount": 0,
-  "tags": []
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    },
+    "node:1D Schedule Trigger": {
+      "recurrenceRules": []
+    },
+    "node:1H Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Chatwoot Input": [
+      {
+        "json": {
+          "headers": {
+            "accept": "application/json",
+            "user-agent": "rest-client/2.1.0 (linux-musl x86_64) ruby/3.3.3p89",
+            "content-type": "application/json",
+            "content-length": "4117",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "host": "n8n_webhook:5678"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "account": {
+              "id": 7,
+              "name": "Bitliv"
+            },
+            "additional_attributes": {},
+            "content_attributes": {},
+            "content_type": "text",
+            "content": "cuzinho",
+            "conversation": {
+              "additional_attributes": {},
+              "can_reply": true,
+              "channel": "Channel::Api",
+              "contact_inbox": {
+                "id": 38,
+                "contact_id": 16,
+                "inbox_id": 3,
+                "source_id": "44e41b18-7d9b-47ce-be95-a081c7e5c2ab",
+                "created_at": "2025-01-29T00:05:23.047Z",
+                "updated_at": "2025-01-29T00:05:23.047Z",
+                "hmac_verified": false,
+                "pubsub_token": "cc2nyw38tG7gA9pW37Y9nrpk"
+              },
+              "id": 21,
+              "inbox_id": 3,
+              "messages": [
+                {
+                  "id": 243,
+                  "content": "cuzinho",
+                  "account_id": 7,
+                  "inbox_id": 3,
+                  "conversation_id": 21,
+                  "message_type": 0,
+                  "created_at": 1738138562,
+                  "updated_at": "2025-01-29T08:16:02.878Z",
+                  "private": false,
+                  "status": "sent",
+                  "source_id": "WAID:3FB67A92FEBDE9E7C85E",
+                  "content_type": "text",
+                  "content_attributes": {},
+                  "sender_type": "Contact",
+                  "sender_id": 16,
+                  "external_source_ids": {},
+                  "additional_attributes": {},
+                  "processed_message_content": "cuzinho",
+                  "sentiment": {},
+                  "conversation": {
+                    "assignee_id": null,
+                    "unread_count": 2,
+                    "last_activity_at": 1738138562,
+                    "contact_inbox": {
+                      "source_id": "44e41b18-7d9b-47ce-be95-a081c7e5c2ab"
+                    }
+                  },
+                  "sender": {
+                    "additional_attributes": {},
+                    "custom_attributes": {},
+                    "email": null,
+                    "id": 16,
+                    "identifier": "5511948182061@s.whatsapp.net",
+                    "name": "Pedro Nascimento",
+                    "phone_number": "+5511948182061",
+                    "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--75183fee143fbc1df269a26d5ac37283aabf0fc2/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+                    "type": "contact"
+                  }
+                }
+              ],
+              "labels": [],
+              "meta": {
+                "sender": {
+                  "additional_attributes": {},
+                  "custom_attributes": {},
+                  "email": null,
+                  "id": 16,
+                  "identifier": "5511948182061@s.whatsapp.net",
+                  "name": "Pedro Nascimento",
+                  "phone_number": "+5511948182061",
+                  "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--75183fee143fbc1df269a26d5ac37283aabf0fc2/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+                  "type": "contact"
+                },
+                "assignee": null,
+                "team": null,
+                "hmac_verified": false
+              },
+              "status": "pending",
+              "custom_attributes": {},
+              "snoozed_until": null,
+              "unread_count": 2,
+              "first_reply_created_at": "2025-01-29T00:05:29.403Z",
+              "priority": null,
+              "waiting_since": 1738109166,
+              "agent_last_seen_at": 1738138216,
+              "contact_last_seen_at": 1738110373,
+              "last_activity_at": 1738138562,
+              "timestamp": 1738138562,
+              "created_at": 1738109123
+            },
+            "created_at": "2025-01-29T08:16:02.878Z",
+            "id": 243,
+            "inbox": {
+              "id": 3,
+              "name": "anna"
+            },
+            "message_type": "incoming",
+            "status": "sent",
+            "private": false,
+            "sender": {
+              "account": {
+                "id": 7,
+                "name": "Bitliv"
+              },
+              "additional_attributes": {},
+              "avatar": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--75183fee143fbc1df269a26d5ac37283aabf0fc2/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+              "custom_attributes": {},
+              "email": null,
+              "id": 16,
+              "identifier": "5511948182061@s.whatsapp.net",
+              "name": "Pedro Nascimento",
+              "phone_number": "+5511948182061",
+              "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--75183fee143fbc1df269a26d5ac37283aabf0fc2/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg"
+            },
+            "source_id": "WAID:3FB67A92FEBDE9E7C85E",
+            "event": "message_created"
+          },
+          "webhookUrl": "https://whk.dev.bitliv.ai/webhook/chatwoot",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "DLX Consumer": [
+      {
+        "json": {
+          "headers": {
+            "accept": "application/json",
+            "user-agent": "rest-client/2.1.0 (linux-musl x86_64) ruby/3.3.3p89",
+            "content-type": "application/json",
+            "content-length": "4083",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "host": "n8n_webhook:5678"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "account": {
+              "id": 7,
+              "name": "Bitliv"
+            },
+            "additional_attributes": {},
+            "content_attributes": {},
+            "content_type": "text",
+            "content": "Opa",
+            "conversation": {
+              "additional_attributes": {},
+              "can_reply": true,
+              "channel": "Channel::Api",
+              "contact_inbox": {
+                "id": 40,
+                "contact_id": 20,
+                "inbox_id": 3,
+                "source_id": "5d5d4f1c-7984-4837-8af9-c3a71103b481",
+                "created_at": "2025-01-29T13:51:26.235Z",
+                "updated_at": "2025-01-29T13:51:26.235Z",
+                "hmac_verified": false,
+                "pubsub_token": "b2sj6PM6yh4KigW6GGpMGTbo"
+              },
+              "id": 22,
+              "inbox_id": 3,
+              "messages": [
+                {
+                  "id": 302,
+                  "content": "Opa",
+                  "account_id": 7,
+                  "inbox_id": 3,
+                  "conversation_id": 22,
+                  "message_type": 0,
+                  "created_at": 1738159352,
+                  "updated_at": "2025-01-29T14:02:32.814Z",
+                  "private": false,
+                  "status": "sent",
+                  "source_id": "WAID:3F4E141C3F6A488CBC16",
+                  "content_type": "text",
+                  "content_attributes": {},
+                  "sender_type": "Contact",
+                  "sender_id": 20,
+                  "external_source_ids": {},
+                  "additional_attributes": {},
+                  "processed_message_content": "Opa",
+                  "sentiment": {},
+                  "conversation": {
+                    "assignee_id": null,
+                    "unread_count": 1,
+                    "last_activity_at": 1738159352,
+                    "contact_inbox": {
+                      "source_id": "5d5d4f1c-7984-4837-8af9-c3a71103b481"
+                    }
+                  },
+                  "sender": {
+                    "additional_attributes": {},
+                    "custom_attributes": {},
+                    "email": null,
+                    "id": 20,
+                    "identifier": "5511948182061@s.whatsapp.net",
+                    "name": "Pedro Nascimento",
+                    "phone_number": "+5511948182061",
+                    "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5774cee1b3eb6d7c690d8f189a648469bcecd1e9/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+                    "type": "contact"
+                  }
+                }
+              ],
+              "labels": [],
+              "meta": {
+                "sender": {
+                  "additional_attributes": {},
+                  "custom_attributes": {},
+                  "email": null,
+                  "id": 20,
+                  "identifier": "5511948182061@s.whatsapp.net",
+                  "name": "Pedro Nascimento",
+                  "phone_number": "+5511948182061",
+                  "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5774cee1b3eb6d7c690d8f189a648469bcecd1e9/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+                  "type": "contact"
+                },
+                "assignee": null,
+                "team": null,
+                "hmac_verified": false
+              },
+              "status": "pending",
+              "custom_attributes": {},
+              "snoozed_until": null,
+              "unread_count": 1,
+              "first_reply_created_at": null,
+              "priority": null,
+              "waiting_since": 1738158686,
+              "agent_last_seen_at": 1738159351,
+              "contact_last_seen_at": 1738159351,
+              "last_activity_at": 1738159352,
+              "timestamp": 1738159352,
+              "created_at": 1738158686
+            },
+            "created_at": "2025-01-29T14:02:32.814Z",
+            "id": 302,
+            "inbox": {
+              "id": 3,
+              "name": "anna"
+            },
+            "message_type": "incoming",
+            "status": "sent",
+            "private": false,
+            "sender": {
+              "account": {
+                "id": 7,
+                "name": "Bitliv"
+              },
+              "additional_attributes": {},
+              "avatar": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5774cee1b3eb6d7c690d8f189a648469bcecd1e9/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+              "custom_attributes": {},
+              "email": null,
+              "id": 20,
+              "identifier": "5511948182061@s.whatsapp.net",
+              "name": "Pedro Nascimento",
+              "phone_number": "+5511948182061",
+              "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBUZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5774cee1b3eb6d7c690d8f189a648469bcecd1e9/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg"
+            },
+            "source_id": "WAID:3F4E141C3F6A488CBC16",
+            "event": "message_created"
+          },
+          "webhookUrl": "https://whk.dev.bitliv.ai/webhook/chatwoot",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Listen Insert Users": [
+      {
+        "json": {
+          "length": 612,
+          "processId": 81871,
+          "channel": "n8n_channel_64d5906f_6c9a_44ab_ac26_25d37efb2905",
+          "payload": {
+            "id": 29,
+            "date_created": "2025-01-31T16:32:52.151558+00:00",
+            "date_updated": null,
+            "picture_url": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBWUE9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--2eb3908b5712cea78bde77b3da9a5225734ecf70/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/427790916_1067752487616081_8626231362871951246_n.jpg",
+            "picture": null
+          },
+          "name": "notification"
+        }
+      }
+    ],
+    "1H Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2025-02-04T09:00:15.076-03:00",
+          "Readable date": "February 4th 2025, 9:00:15 am",
+          "Readable time": "9:00:15 am",
+          "Day of week": "Tuesday",
+          "Year": "2025",
+          "Month": "February",
+          "Day of month": "04",
+          "Hour": "09",
+          "Minute": "00",
+          "Second": "15",
+          "Timezone": "America/Sao_Paulo (UTC-03:00)"
+        }
+      }
+    ]
+  },
+  "versionId": "f49a5266-fcec-44dc-b3b6-99683c1659e7",
+  "triggerCount": 4,
+  "tags": [
+    {
+      "createdAt": "2025-01-30T17:03:36.094Z",
+      "updatedAt": "2025-01-30T17:03:36.094Z",
+      "id": "0Zi4XIcBRQAtlr7Z",
+      "name": "Anna's project"
+    },
+    {
+      "createdAt": "2025-01-30T17:03:24.799Z",
+      "updatedAt": "2025-01-30T17:03:24.799Z",
+      "id": "yX83KwSzm9VQnrU1",
+      "name": "development"
+    }
+  ]
 }
