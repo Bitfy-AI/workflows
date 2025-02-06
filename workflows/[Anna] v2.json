@@ -1,9 +1,9 @@
 {
-  "createdAt": "2025-01-25T12:07:34.449Z",
-  "updatedAt": "2025-02-06T13:53:38.332Z",
-  "id": "4NoK6P9qxRkJzCvU",
+  "createdAt": "2025-02-04T11:26:59.038Z",
+  "updatedAt": "2025-02-04T11:26:59.038Z",
+  "id": "a4hd2Uu5hq9csuyD",
   "name": "[Anna] v2",
-  "active": true,
+  "active": false,
   "nodes": [
     {
       "parameters": {
@@ -129,7 +129,7 @@
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "={\n  \"data\": {{ \n    (() => {\n      const sourceNodeName = $('Get Final List 2').isExecuted ? 'Get Final List 2' : $prevNode.name;\n      const data = $(sourceNodeName).first().json.data;\n      const uniqueIds = new Set();\n      const messages = [];\n\n      data.reduce((_, buffer) => {\n        const parsed = JSON.parse(buffer);\n        if (!uniqueIds.has(parsed.message_id)) {\n          uniqueIds.add(parsed.message_id);\n\n          let index = messages.findIndex(msg => msg.message_id > parsed.message_id);\n          if (index === -1) index = messages.length;\n          messages.splice(index, 0, parsed);\n        }\n      }, []);\n\n      return messages.reduce((acc, msg) => {\n        delete msg.message_id;\n        acc.push({ content: msg, loop_reset: true });\n        return acc;\n      }, []);\n\n    })()\n  }}\n}",
+        "jsonOutput": "={\n  \"data\": {{ \n    (() => {\n      const data = $($prevNode.name).first().json.data;\n      const uniqueIds = new Set();\n      const messages = [];\n\n      data.reduce((_, buffer) => {\n          const parsed = JSON.parse(buffer);\n\n          if (!uniqueIds.has(parsed.message_id)) {\n              uniqueIds.add(parsed.message_id);\n\n              let index = messages.findIndex(msg => msg.message_id > parsed.message_id);\n              if (index === -1) index = messages.length;\n              messages.splice(index, 0, parsed);\n          }\n      }, []);\n\n      return messages.reduce((acc, msg) => {\n          delete msg.message_id;\n          acc.push({ content: msg, loop_reset: true });\n          return acc;\n      }, []);\n\n    })()\n  }}\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.set",
@@ -310,7 +310,7 @@
     {
       "parameters": {
         "operation": "delete",
-        "key": "=30"
+        "key": "=31"
       },
       "id": "90e3fce7-6625-46c9-9b27-4cf2ced01be5",
       "name": "Reset List 2",
@@ -614,6 +614,39 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "=http://chatwoot:3000/api/v1/accounts/{{ $('Mapping').first().json.chatwoot.account_id }}/conversations/{{ $('Mapping').first().json.chatwoot.conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{ $('Mapping').first().json.chatwoot.bot_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $('Execute Core').item.json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        1300
+      ],
+      "id": "319735a6-941e-4a78-bcfc-0ee211013523",
+      "name": "Chatwoot Output"
+    },
+    {
+      "parameters": {
         "content": "Fluxo Core, responsável pelo processamento da AI",
         "height": 80,
         "width": 260,
@@ -642,7 +675,6 @@
       ],
       "id": "b39ad79d-99b1-48ce-8fde-ee081dd48322",
       "name": "Clear History",
-      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "1Jj8ddykbvqPSFOp",
@@ -675,7 +707,7 @@
       "parameters": {
         "name": "restart_history",
         "description": "=Invoque essa tool para iniciar uma nova conversa para o user, assim ignorando o histórico passado. Apenas quando o user solicitar.",
-        "jsCode": "const axios = require('axios');\n\n// Converte o mapeamento recebido em JSON\nconst mapping = JSON.parse($('Core Input').item.json.body.mapping);\n\n// Verifica se o usuário é admin; caso contrário, retorna erro\nif (mapping.system.user_type !== 'admin') {\n  return JSON.stringify({ success: false, error: \"Acesso negado: usuário não autorizado.\" });\n}\n\n/**\n * Função que espera pelo tempo especificado.\n * @param {number} ms - Milissegundos a aguardar.\n * @returns {Promise<void>}\n */\nconst delay = ms => new Promise(resolve => setTimeout(resolve, ms));\n\n/**\n * Função para enviar a requisição para criar uma conversa no Directus.\n * Tenta até 3 vezes em caso de falha, com delay de 1 segundo entre as tentativas.\n * @returns {Promise<object>} - Objeto com sucesso ou erro.\n */\nasync function sendRequest() {\n  const url = 'http://directus:8055/items/conversations';\n  const data = {\n    user_id: mapping.chatwoot.contact_id,\n    date_created: new Date().toISOString()\n  };\n  const headers = {\n    Authorization: `Bearer ${mapping.system.directus_token}`,\n    'Content-Type': 'application/json'\n  };\n\n  let attempt = 0;\n  let lastError = null;\n\n  while (attempt < 3) {\n    try {\n      const response = await axios.post(url, data, { headers });\n      console.log(`Requisição realizada com sucesso na tentativa ${attempt + 1}.`);\n      return { success: true, data: response.data };\n    } catch (error) {\n      attempt++;\n      lastError = error;\n      console.error(`Tentativa ${attempt} falhou:`, error.response ? error.response.data : error.message);\n      if (attempt < 3) {\n        console.log(\"Aguardando 1 segundo antes da nova tentativa...\");\n        await delay(1000);\n      }\n    }\n  }\n  \n  return { success: false, error: lastError.response ? lastError.response.data : lastError.message };\n}\n\nreturn sendRequest().then(result => JSON.stringify(result));"
+        "jsCode": "const axios = require('axios');\n\nconst mapping = JSON.parse($('Core Input').item.json.body.mapping);\n\n// Verificação do tipo de usuário\nif (mapping.system.user_type !== 'admin') {\n    return JSON.stringify({ success: false, error: \"Acesso negado: usuário não autorizado.\" });\n}\n\n// Se for admin, prossegue com a requisição\nreturn axios.post('http://directus:8055/items/conversations', {\n    user_id: mapping.chatwoot.contact_id,\n    date_created: new Date().toISOString()\n}, {\n    headers: {\n        Authorization: `Bearer ${mapping.system.directus_token}`,\n        'Content-Type': 'application/json'\n    }\n})\n.then(res => JSON.stringify({ success: true, data: res.data }))\n.catch(err => JSON.stringify({ success: false, error: err.response?.data || err.message }));"
       },
       "type": "@n8n/n8n-nodes-langchain.toolCode",
       "typeVersion": 1.1,
@@ -793,7 +825,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        600,
+        500,
         1500
       ],
       "id": "22a81675-2b0f-49d6-b11b-dd71511e8a06",
@@ -893,244 +925,6 @@
       ],
       "id": "75d385e0-847d-406c-b433-32be456f9bbd",
       "name": "Open Conversation"
-    },
-    {
-      "parameters": {
-        "url": "https://api.elevenlabs.io/v1/models",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1280,
-        2100
-      ],
-      "id": "36d542a1-f558-418b-9105-d14cefadb471",
-      "name": "HTTP Request",
-      "executeOnce": true
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.elevenlabs.io/v1/text-to-speech/OYTbf65OHHFELVut7v2H",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "output_format",
-              "value": "mp3_44100_128"
-            },
-            {
-              "name": "optimize_streaming_latency",
-              "value": [
-                "0?output_format=mp3_44100_128",
-                "'0'"
-              ]
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "text",
-              "value": "Você está falando com um assistente virtual. Como posso ajudá-lo hoje?"
-            },
-            {
-              "name": "model_id",
-              "value": "={{ $('HTTP Request').all()[0].json.model_id }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1540,
-        2100
-      ],
-      "id": "157af641-95aa-4c37-806f-1044ee89d589",
-      "name": "HTTP Request1",
-      "executeOnce": true
-    },
-    {
-      "parameters": {
-        "url": "https://api.elevenlabs.io/v1/voices",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "show_legacy",
-              "value": [
-                "true",
-                "'true'"
-              ]
-            }
-          ]
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1000,
-        2100
-      ],
-      "id": "e23f709f-ad15-48fa-aadd-e6128fbfe2c6",
-      "name": "HTTP Request2"
-    },
-    {
-      "parameters": {
-        "url": "https://api.elevenlabs.io/v1/user",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1000,
-        2340
-      ],
-      "id": "c34ff832-55a2-4f10-afaf-409c1b0747cb",
-      "name": "HTTP Request3"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.elevenlabs.io/v1/voices/add/{{ $json.user_id }}/iScHbNW8K33gNo3lGgbo",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "new_name",
-              "value": "Marianne"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1280,
-        2340
-      ],
-      "id": "becdc095-026a-4cc1-9dbc-c1eb84db2b5b",
-      "name": "HTTP Request4"
-    },
-    {
-      "parameters": {
-        "url": "https://api.elevenlabs.io/v1/user",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "xi-api-key",
-              "value": "sk_2f1230c0cae8aa43d5c5a126dc8765d5f7fd3b5780f2870f"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        720,
-        2340
-      ],
-      "id": "a26f645e-83e4-419f-a408-cf10b13996c1",
-      "name": "HTTP Request5"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://chatwoot:3000/api/v1/accounts/{{ $('Mapping').first().json.chatwoot.account_id }}/conversations/{{ $('Mapping').first().json.chatwoot.conversation_id }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "api_access_token",
-              "value": "={{ $('Mapping').first().json.chatwoot.bot_token }}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "content",
-              "value": "={{ $('Execute Core').item.json.output }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1200,
-        960
-      ],
-      "id": "319735a6-941e-4a78-bcfc-0ee211013523",
-      "name": "Chatwoot Output 2"
-    },
-    {
-      "parameters": {
-        "jsCode": "/**\n * Código para segmentar uma mensagem \"humanizada\" e enviá-la para o Chatwoot.\n * \n * Regras de Segmentação:\n * 1. Se o texto tiver menos que MIN_TOTAL_LENGTH caracteres, ele é enviado inteiro.\n * 2. Se for longo:\n *    a. Tenta dividir por quebras de linha duplas (\"\\n\\n\"). Se obtiver pelo menos dois segmentos, utiliza essa divisão.\n *    b. Caso contrário, segmenta com base em delimitadores naturais (ponto, ponto de exclamação, ponto de interrogação, vírgula, ponto e vírgula, dois-pontos) seguidos de espaço.\n *       - A divisão ocorre com lookbehind para garantir que a pontuação seja considerada, sem quebrar no meio de uma palavra.\n * 3. Se algum segmento resultante for menor que MIN_SEGMENT_LENGTH, ele é concatenado com o próximo.\n * 4. Cada segmento é enviado com um delay proporcional (DELAY_FACTOR ms para cada 100 caracteres).\n * \n * Parâmetros:\n * - account_id, conversation_id, bot_token: obtidos de $('Mapping').first().json.chatwoot\n * - content: obtido de $('Execute Core').item.json.output\n * \n * Endpoint do Chatwoot:\n *   http://chatwoot:3000/api/v1/accounts/{account_id}/conversations/{conversation_id}/messages\n * \n * O token é enviado no header \"api_access_token\".\n */\n\nconst axios = require('axios');\n\n// Parâmetros de segmentação\nconst MIN_TOTAL_LENGTH = 50;         // Se o texto tiver menos que 50 caracteres, não segmenta.\nconst DESIRED_SEGMENT_SIZE = 200;      // Tamanho aproximado desejado para cada segmento.\nconst MIN_SEGMENT_LENGTH = 30;         // Segmentos menores que 30 caracteres serão concatenados.\nconst DELAY_FACTOR = 50;               // Delay de 50ms para cada 100 caracteres.\n\n// Função de delay\nconst delay = ms => new Promise(resolve => setTimeout(resolve, ms));\n\n/**\n * Função para segmentar o texto sem quebrar palavras.\n * Utiliza duas estratégias:\n *   1. Se houver \"\\n\\n\", divide por essa sequência.\n *   2. Se não houver ou se não gerar segmentos suficientes, divide por delimitadores naturais\n *      (ponto, ponto de interrogação, ponto de exclamação, vírgula, ponto e vírgula, dois-pontos) seguidos de espaço.\n *\n * @param {string} text - Texto a segmentar.\n * @returns {Array<string>} - Array de segmentos.\n */\nfunction segmentContent(text) {\n  // Se o texto for curto, retorna-o inteiro.\n  if (text.length < MIN_TOTAL_LENGTH) {\n    return [text];\n  }\n  \n  let segments = [];\n  \n  // Estratégia 1: Dividir por quebra de linha dupla\n  if (text.includes(\"\\n\\n\")) {\n    segments = text.split(/\\n\\n/).map(seg => seg.trim()).filter(seg => seg);\n  }\n  \n  // Se não houver segmentos suficientes ou se algum segmento for muito longo, use estratégia 2\n  if (segments.length === 0 || segments.some(seg => seg.length > DESIRED_SEGMENT_SIZE * 1.5)) {\n    // Regex para dividir com base em delimitadores permitidos, sem quebrar palavras:\n    // Procura por delimitadores (ponto, ?, !, vírgula, ;, :) seguidos de espaço.\n    const regex = /(?<=[.?!,;:])\\s+/g;\n    segments = text.split(regex).map(seg => seg.trim()).filter(seg => seg);\n  }\n  \n  // Se algum segmento for muito curto, concatenar com o próximo\n  let finalSegments = [];\n  let buffer = \"\";\n  for (let seg of segments) {\n    if ((buffer + \" \" + seg).trim().length < MIN_SEGMENT_LENGTH) {\n      buffer = (buffer + \" \" + seg).trim();\n    } else {\n      if (buffer) {\n        finalSegments.push(buffer);\n        buffer = \"\";\n      }\n      finalSegments.push(seg);\n    }\n  }\n  if (buffer) finalSegments.push(buffer);\n  \n  // Se algum segmento for muito longo, opcionalmente, divida de forma simples (evitando quebrar palavras)\n  finalSegments = finalSegments.flatMap(seg => {\n    if (seg.length > DESIRED_SEGMENT_SIZE * 1.5) {\n      // Divide por espaços: garante que não quebra no meio de palavras.\n      const words = seg.split(\" \");\n      const subSegments = [];\n      let currentSegment = \"\";\n      for (const word of words) {\n        if ((currentSegment + \" \" + word).trim().length > DESIRED_SEGMENT_SIZE) {\n          subSegments.push(currentSegment.trim());\n          currentSegment = word;\n        } else {\n          currentSegment += \" \" + word;\n        }\n      }\n      if (currentSegment.trim()) subSegments.push(currentSegment.trim());\n      return subSegments;\n    } else {\n      return [seg];\n    }\n  });\n  \n  return finalSegments;\n}\n\n/**\n * Função para enviar uma mensagem para o Chatwoot.\n * \n * @param {string} content - Conteúdo da mensagem.\n * @returns {Promise<object>} - Resposta da requisição.\n */\nasync function sendMessage(content) {\n  const accountId = $('Mapping').first().json.chatwoot.account_id;\n  const conversationId = $('Mapping').first().json.chatwoot.conversation_id;\n  const botToken = $('Mapping').first().json.chatwoot.bot_token;\n  \n  const url = `http://chatwoot:3000/api/v1/accounts/${encodeURIComponent(accountId)}/conversations/${encodeURIComponent(conversationId)}/messages`;\n  const payload = { content };\n  const headers = {\n    \"api_access_token\": botToken,\n    \"Content-Type\": \"application/json\"\n  };\n  \n  try {\n    console.log(`Enviando segmento: \"${content.substring(0, 50)}...\"`);\n    const response = await axios.post(url, payload, { headers });\n    console.log(\"Segmento enviado com sucesso.\");\n    return response.data;\n  } catch (error) {\n    console.error(\"Erro ao enviar segmento:\", error.toString(), error.response ? error.response.data : \"\");\n    throw error;\n  }\n}\n\n/**\n * Função principal: segmenta o texto e envia cada segmento com delay proporcional.\n */\nasync function main() {\n  const text = $('Execute Core').item.json.output;\n  console.log(`Texto original possui ${text.length} caracteres.`);\n  \n  const segments = segmentContent(text);\n  console.log(`Texto segmentado em ${segments.length} parte(s).`);\n  \n  // Enviar cada segmento com delay proporcional\n  for (const segment of segments) {\n    try {\n      await sendMessage(segment);\n    } catch (error) {\n      console.error(\"Erro ao enviar segmento:\", error.toString());\n    }\n    // Calcula delay proporcional: 50ms para cada 100 caracteres do segmento\n    const delayTime = Math.ceil(segment.length / 100) * 50;\n    console.log(`Aguardando ${delayTime}ms antes do próximo segmento.`);\n    await delay(delayTime);\n  }\n  \n  return { message: \"Todos os segmentos foram enviados com sucesso.\" };\n}\n\nreturn main().then(result => [{ json: result }]);\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        700,
-        1300
-      ],
-      "id": "3aa4b08c-0994-4cb9-9118-8b32ff38d404",
-      "name": "Chatwoot Output"
     }
   ],
   "connections": {
@@ -1420,6 +1214,17 @@
         ]
       ]
     },
+    "Chatwoot Output": {
+      "main": [
+        [
+          {
+            "node": "Add Redistors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Restart History": {
       "ai_tool": [
         [
@@ -1541,279 +1346,13 @@
           }
         ]
       ]
-    },
-    "HTTP Request": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request2": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request3": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request4",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request5": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request3",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Chatwoot Output 2": {
-      "main": [
-        []
-      ]
-    },
-    "Chatwoot Output": {
-      "main": [
-        [
-          {
-            "node": "Add Redistors",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
-  "settings": {
-    "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "4NoK6P9qxRkJzCvU"
-  },
-  "staticData": {
-    "node:Schedule Trigger": {
-      "recurrenceRules": []
-    }
-  },
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "pinData": {
-    "Core Input": [
-      {
-        "json": {
-          "headers": {
-            "accept": "application/json, text/plain, */*",
-            "content-type": "multipart/form-data; boundary=--------------------------698709374988848630684344",
-            "user-agent": "axios/1.7.4",
-            "content-length": "1067",
-            "accept-encoding": "gzip, compress, deflate, br",
-            "host": "n8n_webhook:5678",
-            "connection": "keep-alive"
-          },
-          "params": {},
-          "query": {},
-          "body": {
-            "content": "test",
-            "mapping": "{\"chatwoot\":{\"account_id\":7,\"contact_id\":37,\"conversation_id\":39,\"sender_type\":\"Contact\",\"bot_token\":\"P88UsrzFw29m2jhkXGQYPt9T\",\"conversation_status\":\"pending\",\"assignee\":null,\"content\":\"test\",\"data_url\":null,\"message_id\":634,\"channel\":\"Telegram\",\"user_name\":\"Pedro Nascimento\",\"phone_number\":null},\"system\":{\"cooldown\":0,\"workflow_path\":\"main\",\"models\":\"openai/o3-mini\",\"openai_key\":null,\"directus_token\":\"9tKWkbqT5FhxH7DIsjBZLpcMNbBZ7I6b\",\"stirling_pdf_key\":\"48ccc60f-c073-4a96-bee0-a6fe32339d74\",\"conversations_id\":\"7afa8cb6-7544-47e6-b7ac-a38d67c69fe9\",\"context_window\":30,\"enabled_condition\":\"pending_status\",\"allow_whatsapp_groups\":\"enabled_when_mentioned\",\"allow_human_interruption\":true,\"agent_phone_number\":\"558585035162\",\"agent_mentioned\":false,\"agent_name\":\"Anna\",\"user_type\":\"user\"}}"
-          },
-          "webhookUrl": "https://whk.dev.bitliv.ai/webhook/main",
-          "executionMode": "production"
-        }
-      }
-    ],
-    "Consumer": [
-      {
-        "json": {
-          "headers": {
-            "accept": "application/json",
-            "user-agent": "rest-client/2.1.0 (linux-musl x86_64) ruby/3.3.3p89",
-            "content-type": "application/json",
-            "content-length": "4108",
-            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
-            "host": "n8n_webhook:5678"
-          },
-          "params": {},
-          "query": {},
-          "body": {
-            "account": {
-              "id": 7,
-              "name": "Bitliv"
-            },
-            "additional_attributes": {},
-            "content_attributes": {},
-            "content_type": "text",
-            "content": "Opa",
-            "conversation": {
-              "additional_attributes": {
-                "chat_id": 753066854
-              },
-              "can_reply": true,
-              "channel": "Channel::Telegram",
-              "contact_inbox": {
-                "id": 68,
-                "contact_id": 37,
-                "inbox_id": 4,
-                "source_id": "753066854",
-                "created_at": "2025-02-01T11:37:10.399Z",
-                "updated_at": "2025-02-01T11:37:10.399Z",
-                "hmac_verified": false,
-                "pubsub_token": "uQ8T4BqnGNfcbAUneAv5sh6W"
-              },
-              "id": 39,
-              "inbox_id": 4,
-              "messages": [
-                {
-                  "id": 644,
-                  "content": "Opa",
-                  "account_id": 7,
-                  "inbox_id": 4,
-                  "conversation_id": 39,
-                  "message_type": 0,
-                  "created_at": 1738750276,
-                  "updated_at": "2025-02-05T10:11:16.791Z",
-                  "private": false,
-                  "status": "sent",
-                  "source_id": "96",
-                  "content_type": "text",
-                  "content_attributes": {},
-                  "sender_type": "Contact",
-                  "sender_id": 37,
-                  "external_source_ids": {},
-                  "additional_attributes": {},
-                  "processed_message_content": "Opa",
-                  "sentiment": {},
-                  "conversation": {
-                    "assignee_id": null,
-                    "unread_count": 1,
-                    "last_activity_at": 1738750276,
-                    "contact_inbox": {
-                      "source_id": "753066854"
-                    }
-                  },
-                  "sender": {
-                    "additional_attributes": {
-                      "username": "pedrohnas",
-                      "language_code": "pt-br",
-                      "social_telegram_user_id": 753066854,
-                      "social_telegram_user_name": "pedrohnas"
-                    },
-                    "custom_attributes": {},
-                    "email": null,
-                    "id": 37,
-                    "identifier": null,
-                    "name": "Pedro Nascimento",
-                    "phone_number": null,
-                    "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBWkE9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5806a04c8290f5afe5a9de27324113e01cab1a1b/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/file_0.jpg",
-                    "type": "contact"
-                  }
-                }
-              ],
-              "labels": [],
-              "meta": {
-                "sender": {
-                  "additional_attributes": {
-                    "username": "pedrohnas",
-                    "language_code": "pt-br",
-                    "social_telegram_user_id": 753066854,
-                    "social_telegram_user_name": "pedrohnas"
-                  },
-                  "custom_attributes": {},
-                  "email": null,
-                  "id": 37,
-                  "identifier": null,
-                  "name": "Pedro Nascimento",
-                  "phone_number": null,
-                  "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBWkE9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5806a04c8290f5afe5a9de27324113e01cab1a1b/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/file_0.jpg",
-                  "type": "contact"
-                },
-                "assignee": null,
-                "team": null,
-                "hmac_verified": false
-              },
-              "status": "pending",
-              "custom_attributes": {},
-              "snoozed_until": null,
-              "unread_count": 1,
-              "first_reply_created_at": "2025-02-01T11:40:25.833Z",
-              "priority": null,
-              "waiting_since": 1738410032,
-              "agent_last_seen_at": 1738706631,
-              "contact_last_seen_at": 0,
-              "last_activity_at": 1738750276,
-              "timestamp": 1738750276,
-              "created_at": 1738409831
-            },
-            "created_at": "2025-02-05T10:11:16.791Z",
-            "id": 644,
-            "inbox": {
-              "id": 4,
-              "name": "Telegram"
-            },
-            "message_type": "incoming",
-            "status": "sent",
-            "private": false,
-            "sender": {
-              "account": {
-                "id": 7,
-                "name": "Bitliv"
-              },
-              "additional_attributes": {
-                "username": "pedrohnas",
-                "language_code": "pt-br",
-                "social_telegram_user_id": 753066854,
-                "social_telegram_user_name": "pedrohnas"
-              },
-              "avatar": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBWkE9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5806a04c8290f5afe5a9de27324113e01cab1a1b/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/file_0.jpg",
-              "custom_attributes": {},
-              "email": null,
-              "id": 37,
-              "identifier": null,
-              "name": "Pedro Nascimento",
-              "phone_number": null,
-              "thumbnail": "https://chat.dev.bitliv.ai/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBWkE9IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--5806a04c8290f5afe5a9de27324113e01cab1a1b/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--6484a55b320d84cf2c55376cc120444713caa4ca/file_0.jpg"
-            },
-            "source_id": "96",
-            "event": "message_created"
-          },
-          "webhookUrl": "https://whk.dev.bitliv.ai/webhook/chatwoot",
-          "executionMode": "production"
-        }
-      }
-    ]
-  },
-  "versionId": "9205cb98-6881-45ff-8d16-77992af65cab",
-  "triggerCount": 2,
-  "tags": [
-    {
-      "createdAt": "2025-01-30T17:03:36.094Z",
-      "updatedAt": "2025-01-30T17:03:36.094Z",
-      "id": "0Zi4XIcBRQAtlr7Z",
-      "name": "Anna's project"
-    },
-    {
-      "createdAt": "2025-01-30T17:03:24.799Z",
-      "updatedAt": "2025-01-30T17:03:24.799Z",
-      "id": "yX83KwSzm9VQnrU1",
-      "name": "development"
-    }
-  ]
+  "settings": {},
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "8527de15-6205-43f3-babc-469493a363d5",
+  "triggerCount": 0,
+  "tags": []
 }
